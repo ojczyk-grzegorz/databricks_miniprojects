@@ -897,3 +897,86 @@ GitHub Copilot: Correct. The reasoning in one line each:
 - **`highlights`** — kept as `TEXT[]` because they're product-specific tags with no shared identity across products — normalizing them would add two tables with no real query benefit
 
 The rule of thumb: normalize when the values have **independent existence and are reused**. Don't normalize when they're just a list of labels attached to one entity.
+
+User: whilee we are at it. Could you list me a few suggestion how should I practice databricks? I got this sephora dataset and I would like to reuse it. I have done Databricks Associate and I'm preparing for Professonal.  want to practice Associate first, than Professional. I would like to go from simple notebook (all in one etl) to DABs with Jobs and DLT
+
+GitHub Copilot: Here's a progression that mirrors how the certification exams are structured:
+
+---
+
+## Associate Level — Foundations
+
+**1. Single notebook ETL (what you already have)**
+- Load CSVs into Delta tables (bronze/silver/gold) using PySpark instead of DuckDB
+- Practice: `spark.read.csv()`, `df.write.format("delta")`, `OPTIMIZE`, `VACUUM`
+
+**2. Refactor into separate notebooks, chained manually**
+- `01_ingest.py`, `02_transform.py`, `03_gold.py`
+- Practice: `%run`, `dbutils.notebook.run()`, passing parameters between notebooks
+
+**3. Simple Job with notebook tasks**
+- Create a Job in the UI with the notebooks as sequential tasks
+- Add a basic cluster policy and job cluster (not interactive cluster)
+- Practice: job parameters, task dependencies, email alerts on failure
+
+**4. Delta table features**
+- Time travel: `SELECT * FROM bronze_products VERSION AS OF 1`
+- Schema evolution: add a column mid-pipeline and handle it
+- `MERGE INTO` for upserts on the reviews table
+
+---
+
+## Transition — DABs (Databricks Asset Bundles)
+
+**5. Convert your Job to a DAB**
+```
+bundle/
+├── databricks.yml        # bundle config
+├── resources/
+│   └── sephora_job.yml   # job definition as code
+└── src/
+    ├── ingest.py
+    ├── transform.py
+    └── gold.py
+```
+- Practice: `databricks bundle deploy`, `databricks bundle run`
+- This is the "infrastructure as code" signal for Professional
+
+---
+
+## Professional Level
+
+**6. Delta Live Tables pipeline**
+- Rewrite bronze/silver/gold as a DLT pipeline
+- Use `@dlt.table`, `@dlt.expect` for data quality constraints
+- Practice: `LIVE.` references, continuous vs triggered mode, quarantine pattern with expectations
+
+**7. DLT + parameterization**
+- Pass the source path as a pipeline parameter
+- Practice: `dlt.read_stream()` for incremental ingestion of the review CSVs (simulate arriving data)
+
+**8. Workflows with DLT + notebooks + conditions**
+- Job that runs: DLT pipeline → gold aggregation notebook → "send report" notebook
+- Add a conditional task (only run if row count > threshold)
+- Practice: `dbutils.jobs.taskValues.set()` / `get()` for passing data between tasks
+
+**9. Unity Catalog**
+- Register Delta tables in Unity Catalog with 3-level namespace (`catalog.schema.table`)
+- Add column-level tags to PII-adjacent columns (reviewer skin info)
+- Practice: `GRANT`, `REVOKE`, lineage in the UI
+
+---
+
+## Suggested order of commits
+
+```
+feat: pyspark ETL in single notebook (bronze/silver/gold delta tables)
+feat: split into separate notebooks with dbutils.notebook.run
+feat: convert to databricks Job (UI first, then export JSON)
+feat: migrate job to DAB (databricks.yml)
+feat: rewrite pipeline as DLT with expectations
+feat: add Unity Catalog registration
+feat: parameterized Job with conditional tasks
+```
+
+Each step is a working, runnable artifact — same principle as your duck_rag project.
