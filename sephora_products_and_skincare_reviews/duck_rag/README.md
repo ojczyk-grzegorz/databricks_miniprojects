@@ -91,13 +91,6 @@ duck_rag/
 │   ├── retrieval.py          # query_rag() — pure retrieval, no LLM
 │   └── llm.py                # Ollama client + RAG prompt builder
 │
-├── api/                      # FastAPI (Phase 3)
-│   ├── main.py
-│   ├── schemas.py
-│   ├── dependencies.py       # shared con, model instances
-│   └── routes/
-│       └── rag.py
-│
 ├── mcp_server/               # MCP (Phase 4)
 │   └── server.py
 │
@@ -154,72 +147,7 @@ def ask(con: duckdb.DuckDBPyConnection, question: str, model: str = "llama3") ->
 
 ---
 
-## Phase 3 — FastAPI endpoint
-
-**`api/dependencies.py`** — shared state (avoid reconnecting on every request):
-```python
-from functools import lru_cache
-import duckdb
-from sentence_transformers import SentenceTransformer
-from sephora_rag.config import FILE_DB
-
-@lru_cache
-def get_model() -> SentenceTransformer:
-    return SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1", device="cpu")
-
-@lru_cache
-def get_connection() -> duckdb.DuckDBPyConnection:
-    return duckdb.connect(FILE_DB, read_only=True)
-```
-
-**`api/schemas.py`:**
-```python
-from pydantic import BaseModel
-
-class QueryRequest(BaseModel):
-    question: str
-    model: str = "llama3"
-
-class QueryResponse(BaseModel):
-    answer: str
-    source_reviews: list[dict]   # for transparency / debugging
-```
-
-**`api/routes/rag.py`:**
-```python
-from fastapi import APIRouter, Depends
-from api.schemas import QueryRequest, QueryResponse
-from api.dependencies import get_connection, get_model
-from sephora_rag.llm import ask
-from sephora_rag.retrieval import query_rag
-from sephora_rag.embeddings import embed_text
-
-router = APIRouter(prefix="/rag", tags=["rag"])
-
-@router.post("/query", response_model=QueryResponse)
-def query(req: QueryRequest, con=Depends(get_connection), model=Depends(get_model)):
-    embedding = embed_text(req.question)
-    reviews = query_rag(con, embedding)
-    answer = ask(con, req.question, ollama_model=req.model)
-    return QueryResponse(answer=answer, source_reviews=reviews)
-```
-
-**`api/main.py`:**
-```python
-from fastapi import FastAPI
-from api.routes import rag
-
-app = FastAPI(title="Sephora RAG API")
-app.include_router(rag.router)
-```
-
-Run with: `uvicorn api.main:app --reload`
-
-**Portfolio signal:** production-shaped API (Pydantic validation, dependency injection, auto-generated `/docs`).
-
----
-
-## Phase 4 — MCP Server
+## Phase 3 — MCP Server
 
 MCP lets AI assistants (Claude Desktop, Copilot, etc.) call your RAG as a tool. Install: `pip install mcp`.
 
@@ -274,51 +202,16 @@ User: Does my proposal makes sense? What may be better?
 
 GitHub Copilot: Read [](file:///home/adminn/repos/learning_dbc_datasets/sephora_products_and_skincare_reviews/duck_rag/pyproject.toml)
 
-The proposal is solid overall. A few genuine issues worth knowing:
 
-**1. `lru_cache` on a DuckDB connection is problematic in FastAPI**
-
-DuckDB connections aren't thread-safe. With FastAPI's default multi-threaded request handling, multiple requests sharing one cached connection will race. Use the lifespan pattern instead:
-
-```python
-# api/main.py
-from contextlib import asynccontextmanager
-import duckdb
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.con = duckdb.connect(FILE_DB, read_only=True)
-    app.state.model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1")
-    yield
-    app.state.con.close()
-
-app = FastAPI(lifespan=lifespan)
-```
-
-**2. Embedding inference blocks the async event loop**
-
-`sentence_transformers.encode()` is CPU-heavy and synchronous. In async FastAPI you need to offload it:
-
-```python
-import asyncio
-from functools import partial
-
-async def embed_async(text: str) -> list[float]:
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, partial(model.encode, text))
-```
-
-Otherwise the API freezes under any real load.
-
-**3. The gold table is too narrow for a good demo**
+**1. The gold table is too narrow for a good demo**
 
 It selects exactly 1 product (25-30 reviews, mixed ratings). A reviewer hitting the API will get answers about one product only. Consider making the gold layer the full `silver_reviews` table, and letting the retrieval layer find the most relevant reviews across all products. That's a much stronger RAG demo.
 
-**4. Two embedding models in the notebook — pick one**
+**2. Two embedding models in the notebook — pick one**
 
 `mxbai-embed-large-v1` is clearly the better performer from your experiments. Commit to it in `config.py` and drop `all-MiniLM-L6-v2` from the final project.
 
-**5. Minor: pyproject.toml already exists** — good, but update `name` from `local-rag` to something matching the project, and add `fastapi`, `uvicorn`, `ollama`, `mcp` to dependencies as you build each phase.
+**3. Minor: pyproject.toml already exists** — good, but update `name` from `local-rag` to something matching the project, and add `fastapi`, `uvicorn`, `ollama`, `mcp` to dependencies as you build each phase.
 
 ---
 
@@ -330,35 +223,6 @@ It selects exactly 1 product (25-30 reviews, mixed ratings). A reviewer hitting 
 
 The structure itself is sound; the main practical gotcha is the async/threading concern with FastAPI + DuckDB + sentence-transformers.
 
-User: should I maybe add postgres to the mix for FAST API endpoint?\
-
-GitHub Copilot: **Short answer: no, not for this project.**
-
-DuckDB is the entire point of the portfolio story here — zero-infra vector search, analytical queries, no server to spin up. Adding Postgres dilutes that differentiator without solving a real problem you have.
-
-**The threading concern I raised doesn't require Postgres to fix.** DuckDB in read-only mode supports multiple concurrent reader connections. The fix is simply opening a connection per request rather than sharing one:
-
-```python
-# api/dependencies.py
-from fastapi import Request
-
-def get_connection(request: Request) -> duckdb.DuckDBPyConnection:
-    # each request gets its own read-only connection — lightweight, safe
-    return duckdb.connect(request.app.state.db_path, read_only=True)
-```
-
-**When Postgres would actually make sense to add:**
-- You want to log every user query + answer for later analysis (operational write workload — DuckDB isn't designed for that)
-- You add user accounts / sessions
-- You scale to many concurrent writers
-
-**If you want to show Postgres knowledge in a portfolio, it's better as a separate project** — not bolted onto a DuckDB project where it'll look like you weren't sure which tool to use.
-
-The clean narrative for this project is: *"DuckDB does ETL, vector search, and analytical queries in a single embedded file — no infrastructure required."* That's memorable. Postgres in the mix muddies it.
-
-User: Cool, so using duck db with fast api for local project is fine or it is also over the top and I should just focus on using ollama? Just looking for a nice interface to shocase how rag works (I would like also add full text search)
-
-GitHub Copilot: For a local showcase, FastAPI is overkill on its own — you'd have no frontend, just a `/docs` UI that isn't very impressive to non-technical viewers.
 
 **The right tool for "nice interface to demo RAG" locally is Streamlit or Gradio.** Both are ~20 lines to get a working chat UI, and they're immediately visual.
 
