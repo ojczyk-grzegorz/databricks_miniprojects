@@ -76,7 +76,7 @@ def silver_products_recommendations() -> DataFrame:
 
 @dp.table(name=TABLE_GOLD_PRODUCTS_RECOMMENDATIONS)
 def gold_products_recommendations() -> DataFrame:
-    product_id = (
+    df_product = (
         spark
         .read
         .table(TABLE_SILVER_PRODUCTS_RECOMMENDATIONS)
@@ -102,11 +102,16 @@ def gold_products_recommendations() -> DataFrame:
         .orderBy(sf.col("diff"))
         .filter(sf.col("cnt").between(30, 50))
         .select("product_id")
-    ).collect()[0][0]
+        .limit(1)
+    )
 
     return (
         spark
         .read
         .table(TABLE_SILVER_PRODUCTS_RECOMMENDATIONS)
-        .where(sf.col("product_id") == product_id)
+        .join(
+            df_product,
+            on="product_id",
+            how="inner"
+        )
     )
