@@ -18,7 +18,7 @@ EMBEDDING_MODEL_ENDPOINT = "databricks-gte-large-en"
 spark: SparkSession
 
 
-@dp.table()
+@dp.table(name=TABLE_BRONZE_PRODUCTS_INFO)
 def bronze_products_info():
     return (
         spark
@@ -33,15 +33,10 @@ def bronze_products_info():
             "_metadata.file_modification_time",
             "_metadata.file_path"
         )
-        .write
-        .mode("overwrite")
-        .option("overwriteSchema", "true")
-        .format("delta")
-        .saveAsTable(TABLE_BRONZE_PRODUCTS_INFO)
     )
 
 
-@dp.table()
+@dp.table(name=TABLE_BRONZE_REVIEWS)
 def bronze_reviews():
     return (
         spark
@@ -56,9 +51,4 @@ def bronze_reviews():
             "_metadata.file_modification_time",
             "_metadata.file_path"
         )
-        .write
-        .mode("overwrite")
-        .option("overwriteSchema", "true")
-        .format("delta")
-        .saveAsTable(TABLE_BRONZE_REVIEWS)
     )
