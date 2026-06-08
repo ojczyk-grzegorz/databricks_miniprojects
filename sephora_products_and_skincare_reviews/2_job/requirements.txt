@@ -1,0 +1,6 @@
+databricks_langchain==0.19.0
+databricks-vectorsearch==0.67
+mlflow-skinny[databricks]==3.11.1
+langchain==1.0.0
+langchain-text-splitters==1.0
+langgraph==1.0.10

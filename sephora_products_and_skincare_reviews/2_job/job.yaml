@@ -1,0 +1,54 @@
+resources:
+  jobs:
+    sephora_job:
+      name: sephora_job
+      tasks:
+        - task_key: bronze_layer
+          notebook_task:
+            notebook_path: /Workspace/Users/grzegorzoj02@gmail.com/databricks_miniprojects/sephora_products_and_skincare_reviews/2_job/etl_bronze
+            source: WORKSPACE
+          environment_key: Default
+        - task_key: silver_layer
+          depends_on:
+            - task_key: bronze_layer
+          notebook_task:
+            notebook_path: /Workspace/Users/grzegorzoj02@gmail.com/databricks_miniprojects/sephora_products_and_skincare_reviews/2_job/etl_silver
+            source: WORKSPACE
+        - task_key: gold_layer
+          depends_on:
+            - task_key: silver_layer
+          notebook_task:
+            notebook_path: /Workspace/Users/grzegorzoj02@gmail.com/databricks_miniprojects/sephora_products_and_skincare_reviews/2_job/etl_gold
+            source: WORKSPACE
+        - task_key: ai_layer
+          depends_on:
+            - task_key: gold_layer
+          notebook_task:
+            notebook_path: /Workspace/Users/grzegorzoj02@gmail.com/databricks_miniprojects/sephora_products_and_skincare_reviews/2_job/etl_ai
+            source: WORKSPACE
+      queue:
+        enabled: true
+      parameters:
+        - name: SCHEMA
+          default: workspace.sephora_products_and_skincare_reviews
+        - name: VOLUME_DATA
+          default: /Volumes/workspace/sephora_products_and_skincare_reviews/data/source/
+        - name: TABLE_BRONZE_PRODUCTS_INFO
+          default: 2_bronze_products_info
+        - name: TABLE_BRONZE_REVIEWS
+          default: 2_bronze_reviews
+        - name: TABLE_SILVER_PRODUCTS_RECOMMENDATIONS
+          default: 2_silver_products_recommendations
+        - name: TABLE_GOLD_PRODUCTS_RECOMMENDATIONS
+          default: 2_gold_products_recommendations
+        - name: VECTOR_SEARCH_ENPOINT
+          default: sephora
+        - name: VECTOR_SEARCH_INDEX_NAME
+          default: 2_gold_products_recommendations_index
+        - name: EMBEDDING_MODEL_ENDPOINT
+          default: databricks-gte-large-en
+      environments:
+        - environment_key: Default
+          spec:
+            environment_version: "5"
+      performance_target: PERFORMANCE_OPTIMIZED

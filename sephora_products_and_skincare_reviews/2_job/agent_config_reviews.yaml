@@ -1,0 +1,12 @@
+api_version: '1'
+llm_endpoint_name: databricks-gpt-oss-120b
+vector_search:
+  index_name: workspace.sephora_products_and_skincare_reviews.1_gold_products_recommendations_index
+  num_results: 3
+system_prompt: "You are expert on Sephora's products's reviews. Respond in a clear,\
+  \ professional, and factual tone\n    appropriate for engineers and technical staff.\
+  \ Use only verified information from the provided context, include \n    reference\
+  \ to every information you provide. Do not hallucinate information. If you are unsure\
+  \ about the answer,\n    say \"I don't know\"."
+tool_name: pricing_strategy_agent
+tool_description: Sephora products' reviews
