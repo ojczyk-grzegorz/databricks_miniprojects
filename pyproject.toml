@@ -5,5 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "databricks-langchain==0.19.0",
+    "databricks-vectorsearch==0.67",
+    "langchain==1.0.0",
+    "langchain-text-splitters==1.0",
+    "langgraph==1.0.10",
+    "mlflow-skinny[databricks]==3.11.1",
     "pyspark>=4.1.2",
 ]
