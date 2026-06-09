@@ -74,7 +74,10 @@ def silver_products_recommendations() -> DataFrame:
     )
 
 
-@dp.table(name=TABLE_GOLD_PRODUCTS_RECOMMENDATIONS)
+@dp.table(
+    name=TABLE_GOLD_PRODUCTS_RECOMMENDATIONS,
+    table_properties={"delta.enableChangeDataFeed": "true"}
+)
 def gold_products_recommendations() -> DataFrame:
     df_product = (
         spark
