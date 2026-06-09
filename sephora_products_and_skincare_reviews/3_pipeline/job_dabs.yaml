@@ -1,11 +1,20 @@
 resources:
+  pipelines:
+    sephora_pipeline:
+      name: sephora_pipeline
+      libraries:
+        - file:
+            path: sephora_products_and_skincare_reviews/3_pipeline/transformations/trans.py
+      channel: CURRENT
+      development: false
+
   jobs:
     sephora_pipeline_job:
       name: sephora_pipeline_job
       tasks:
         - task_key: pipeline_layer
           pipeline_task:
-            pipeline_id: aebf1947-2f1e-43c4-9ff4-d73ea8903b0f
+            pipeline_id: ${resources.pipelines.sephora_pipeline.id}
         - task_key: ai_layer
           depends_on:
             - task_key: pipeline_layer
